@@ -90,7 +90,7 @@ def get_wechat_access_token():
         logging.error(f"获取企业微信访问令牌失败: {response.json()}")
     return None
 
-def send_wechat_message(content, media_ids=None):
+def send_wechat_message(content, media_ids):
     """发送企业微信消息"""
     access_token = get_wechat_access_token()
     if not access_token:
@@ -101,21 +101,43 @@ def send_wechat_message(content, media_ids=None):
     if media_ids:
         payload = {
             "touser": WECHAT_USER_ID,
-            "msgtype": "news",
+            "msgtype": "text",
             "agentid": WECHAT_AGENT_ID,
-            "news": {
-                "articles": [
-                    {
-                        "title": "推特更新",
-                        "description": content,
-                        "url": "http://example.com",  # 替换为实际链接
-                        "picurl": media_ids[0] if media_ids else "",  # 使用第一张图片作为封面
-                        "btntxt": "阅读全文"
-                    }
-                ]
-            },
+            "text": {"content": content},
             "safe": 0
         }
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("errcode") == 0:
+                logging.info(f"企业微信消息推送成功: {data}")
+        
+            else:
+                logging.error(f"企业微信消息推送失败: {data.get('errmsg')}")
+            
+        else:
+            logging.error(f"企业微信消息推送失败: {response.json()}")
+        for media_id in media_ids:
+            payload[media_id] = {
+        "touser": WECHAT_USER_ID,
+        "msgtype": "image",
+        "agentid": WECHAT_AGENT_ID,
+        "image": {
+            "media_id": media_id
+        },
+        "safe": 0
+        }   
+            response2 = requests.post(url, json=payload[media_id])
+            if response2.status_code == 200:
+                data = response2.json()
+                if data.get("errcode") == 0:
+                    logging.info(f"图片消息推送成功: {data}")
+        
+                else:
+                    logging.error(f"图片消息推送失败: {data.get('errmsg')}")
+            
+            else:
+                logging.error(f"图片消息推送失败: {response.json()}")
     else:
         payload = {
             "touser": WECHAT_USER_ID,
@@ -124,16 +146,18 @@ def send_wechat_message(content, media_ids=None):
             "text": {"content": content},
             "safe": 0
         }
-
-    response = requests.post(url, json=payload)
-    if response.status_code == 200:
-        data = response.json()
-        if data.get("errcode") == 0:
-            logging.info(f"企业微信消息推送成功: {data}")
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("errcode") == 0:
+                logging.info(f"企业微信消息推送成功: {data}")
+        
+            else:
+                logging.error(f"企业微信消息推送失败: {data.get('errmsg')}")
+            
         else:
-            logging.error(f"企业微信消息推送失败: {data.get('errmsg')}")
-    else:
-        logging.error(f"企业微信消息推送失败: {response.json()}")
+            logging.error(f"企业微信消息推送失败: {response.json()}")
+        
 
 def process_tweet(tweet):
     """处理推文内容，提取文本和媒体"""
@@ -147,39 +171,94 @@ def process_tweet(tweet):
     # 检查推文是否包含媒体信息
     if 'media' in tweet:
         media = tweet['media']
-        if isinstance(media, list):  # 如果 media 是一个列表
-            for item in media:
-                if isinstance(item, dict) and 'media_url' in item:
-                    media_url = item.get('media_url')
-                    if media_url:
-                        media_urls.append(media_url)
-        elif isinstance(media, dict):  # 如果 media 是一个字典
-            media_url = media.get('media_url')
-            if media_url:
-                media_urls.append(media_url)
+        if media:  # 检查 media 是否为空
+            if isinstance(media, list):  # 如果 media 是一个列表
+                for item in media:
+                    if isinstance(item, dict):
+                        # 处理 photo 和 video 字段
+                        if 'media_url_https' in item:
+                            media_url = item.get('media_url_https')
+                            if media_url:
+                                media_urls.append(media_url)
+                        elif 'media_url' in item:
+                            media_url = item.get('media_url')
+                            if media_url:
+                                media_urls.append(media_url)
+                        else:
+                            logging.warning(f"未识别的媒体格式: {item}")
+            elif isinstance(media, dict):  # 如果 media 是一个字典
+                # 处理 photo 和 video 字段
+                if 'photo' in media:
+                    photos = media['photo']
+                    if isinstance(photos, list):  # 如果 photo 是一个列表
+                        for photo in photos:
+                            if isinstance(photo, dict) and 'media_url_https' in photo:
+                                media_url = photo.get('media_url_https')
+                                if media_url:
+                                    media_urls.append(media_url)
+                    elif isinstance(photos, dict):  # 如果 photo 是一个字典
+                        media_url = photos.get('media_url_https')
+                        if media_url:
+                            media_urls.append(media_url)
+                    else:
+                        logging.warning(f"未识别的媒体格式: {photos}")
+
+                if 'video' in media:
+                    videos = media['video']
+                    if isinstance(videos, list):  # 如果 video 是一个列表
+                        for video in videos:
+                            if isinstance(video, dict) and 'media_url_https' in video:
+                                media_url = video.get('media_url_https')
+                                if media_url:
+                                    media_urls.append(media_url)
+                    elif isinstance(videos, dict):  # 如果 video 是一个字典
+                        media_url = videos.get('media_url_https')
+                        if media_url:
+                            media_urls.append(media_url)
+                    else:
+                        logging.warning(f"未识别的媒体格式: {videos}")
+            else:
+                logging.warning(f"未识别的媒体格式: {media}")
         else:
-            logging.warning(f"未识别的媒体格式: {media}")
+            logging.info("媒体字段为空，跳过处理。")
+    else:
+        logging.info("推文不包含媒体信息。")
 
     return text, media_urls
-
-def download_media(media_url, save_path):
-    """下载媒体文件"""
+def download_media(media_url, save_path, timeout=10):
+    """
+    下载媒体文件并保存到指定路径。
+    :param media_url: 媒体文件的 URL。
+    :param save_path: 保存文件的路径。
+    :param timeout: 请求超时时间（秒）。
+    :return: 如果下载成功，返回保存路径；否则返回 None。
+    """
     try:
-        response = requests.get(media_url, stream=True)
-        if response.status_code == 200:
-            with open(save_path, 'wb') as f:
-                for chunk in response.iter_content(1024):
-                    f.write(chunk)
-            logging.info(f"下载成功: {media_url}")
-            return save_path
-        else:
-            logging.error(f"下载失败: {media_url}")
+        # 发起请求并设置超时时间
+        with requests.get(media_url, stream=True, timeout=timeout) as response:
+            if response.status_code == 200:
+                # 确保文件夹存在
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                # 以二进制写入模式打开文件
+                with open(save_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=1024):
+                        if chunk:  # 过滤掉保持连接的新块
+                            f.write(chunk)
+                logging.info(f"下载成功: {media_url} -> {save_path}")
+                return save_path
+            else:
+                logging.error(f"下载失败，状态码: {response.status_code}，URL: {media_url}")
+    except requests.exceptions.Timeout:
+        logging.error(f"请求超时: {media_url}")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"请求异常: {str(e)}")
+        logging.warning(f"如果需要解析链接 {media_url}，请检查链接的合法性，并适当重试。如果问题仍然存在，可能是网络问题导致的。")
     except Exception as e:
         logging.error(f"下载媒体时出错: {str(e)}")
     return None
 
 def upload_media_to_wechat(file_path, access_token):
-    """上传媒体文件到企业微信"""
+    """上传媒体文件到企业微信并返回媒体 ID"""
     url = f"https://qyapi.weixin.qq.com/cgi-bin/media/upload?access_token={access_token}&type=image"
     with open(file_path, 'rb') as f:
         files = {'media': f}
@@ -276,7 +355,7 @@ def monitor_tweets():
                     if media_ids:
                         send_wechat_message(message, media_ids)
                     else:
-                        send_wechat_message(message)
+                        send_wechat_message(message,media_ids=None)
 
                     logging.info(f"已推送推特: {tweet['created_at']} - {translated_text[:30]}...")
 
