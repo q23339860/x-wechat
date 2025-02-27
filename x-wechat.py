@@ -511,15 +511,6 @@ def send_summary_to_wechat(summary):
     message = f"【推特要闻总结】\n{summary}"
     send_wechat_message(message,media_ids=None)
 
-def summary_scheduler():
-    """运行定时任务，生成推特总结"""
-    logging.info("定时任务已启动，每天1800点生成推特总结...")
-    schedule.every().day.at("18:00").do(generate_summary)
-    schedule.every().day.at("18:30").do(cleanup_tweets)
-    
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
 
 def cleanup_tweets():
     """清理旧的推特文件"""
@@ -554,29 +545,6 @@ def clear_cache():
         os.remove(CACHE_FILE)
     logging.info("缓存已清除")
 
-def monitor_scheduler():
-    """运行定时任务"""
-    logging.info("定时任务已启动...")
-    schedule.every().day.at("03:00").do(monitor_tweets)
-    schedule.every().day.at("06:00").do(monitor_tweets)
-    schedule.every().day.at("09:00").do(monitor_tweets)
-    schedule.every().day.at("12:00").do(monitor_tweets)
-    schedule.every().day.at("15:00").do(monitor_tweets)
-    schedule.every().day.at("18:00").do(monitor_tweets)
-    schedule.every().day.at("21:00").do(monitor_tweets)
-    schedule.every().day.at("00:00").do(monitor_tweets)
-    """定时清理任务"""
-    media_folder = "./media"  # 替换为你的 media 文件夹路径
-    days_to_keep = 7  # 保留 7 天内的文件
-
-    # 添加定时任务
-    schedule.every().day.at("00:30").do(clean_media_folder, folder_path=media_folder, days_to_keep=days_to_keep)
-    schedule.every(7).days.at("00:30").do(clear_cache)
-
-    logging.info("定时清理任务已启动...")
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
 
 def clean_media_folder(folder_path, days_to_keep=7):
     """
@@ -603,14 +571,77 @@ def clean_media_folder(folder_path, days_to_keep=7):
             except Exception as e:
                 logging.error(f"处理文件时出错: {file_path}, 错误: {str(e)}")
     logging.info(f"清理完成: {folder_path}")
+
+def delete_cache_scheduler():
+    schedule.every(7).days.at("00:30").do(clear_cache)
+
+    logging.info("定时清理任务已启动...")
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+    
+def monitor_scheduler():
+    """运行定时任务"""
+    logging.info("定时任务已启动...")
+    schedule.every().day.at("03:00").do(monitor_tweets)
+    schedule.every().day.at("06:00").do(monitor_tweets)
+    schedule.every().day.at("09:00").do(monitor_tweets)
+    schedule.every().day.at("12:00").do(monitor_tweets)
+    schedule.every().day.at("15:00").do(monitor_tweets)
+    schedule.every().day.at("18:00").do(monitor_tweets)
+    schedule.every().day.at("21:00").do(monitor_tweets)
+    schedule.every().day.at("00:00").do(monitor_tweets)
+    """定时清理任务"""
+    media_folder = "./media"  # 替换为你的 media 文件夹路径
+    days_to_keep = 7  # 保留 7 天内的文件
+
+    # 添加定时任务
+    schedule.every().day.at("00:30").do(clean_media_folder, folder_path=media_folder, days_to_keep=days_to_keep)
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+def summary_scheduler():
+    """运行定时任务，生成推特总结"""
+    logging.info("定时任务已启动，每天1800点生成推特总结...")
+    schedule.every().day.at("18:00").do(generate_summary)
+    schedule.every().day.at("18:30").do(cleanup_tweets)
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+def main_scheduler():
+    """主定时任务调度器"""
+    logging.info("定时任务已启动...")
+
+    # 添加定时任务
+    schedule.every().day.at("01:19").do(monitor_tweets)
+    schedule.every().day.at("06:00").do(monitor_tweets)
+    schedule.every().day.at("09:00").do(monitor_tweets)
+    schedule.every().day.at("12:00").do(monitor_tweets)
+    schedule.every().day.at("15:00").do(monitor_tweets)
+    schedule.every().day.at("18:00").do(monitor_tweets)
+    schedule.every().day.at("21:00").do(monitor_tweets)
+    schedule.every().day.at("00:00").do(monitor_tweets)
+
+    # 定时清理任务
+    media_folder = "./media"  # 替换为你的 media 文件夹路径
+    days_to_keep = 7  # 保留 7 天内的文件
+
+    # 添加定时任务
+    schedule.every().day.at("00:30").do(clean_media_folder, folder_path=media_folder, days_to_keep=days_to_keep)
+    schedule.every(7).days.at("00:30").do(clear_cache)
+
+    # 定时生成推特总结
+    schedule.every().day.at("18:00").do(generate_summary)
+    schedule.every().day.at("18:30").do(cleanup_tweets)
+
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
 if __name__ == "__main__":
     # 启动定时任务线程
-    monitor_tweets()
-    scheduler_thread1 = threading.Thread(target=summary_scheduler, daemon=True)
-    scheduler_thread1.start()
-    logging.info("开始监控推特更新...")
-    scheduler_thread2 =threading.Thread(target=monitor_scheduler, daemon=True)
-    scheduler_thread2.start()
+    scheduler_thread = threading.Thread(target=main_scheduler, daemon=True)
+    scheduler_thread.start()
+
     # 主线程保持运行
     while True:
         time.sleep(1)
